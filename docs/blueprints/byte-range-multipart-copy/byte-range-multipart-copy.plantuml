@@ -1,0 +1,139 @@
+
+@startuml
+
+S3Client -> Gateway: PUT /bucket/dest?uploads
+
+Gateway -> Uplink: BeginUpload (multipart)
+note left
+    Bucket
+    Key
+    Expires
+end note
+
+Uplink -> Satellite: BeginObjectRequest
+
+Uplink <-- Satellite: BeginObjectResponse
+note right
+    StreamID
+end note
+
+Gateway <-- Uplink: BeginUpload return
+note right
+    StreamID
+end note
+
+S3Client <-- Gateway: 200 response
+note right
+    <UploadId />
+end note
+
+group loop for every part
+    S3Client -> Gateway: PUT /bucket/dest?partNumber=1&uploadId=7tKsLOJgNs\nx-amz-copy-source: /bucket/source\nx-amz-copy-source-range:bytes=0-5368709120
+
+    Gateway -> Uplink: CopyObjectRange
+    note left
+        UploadID
+        Bucket?
+        Key?
+        SourceBucket
+        SourceKey
+        StartOffset
+        EndOffset
+    end note
+
+    Uplink -> Satellite: BeginCopyObjectRangeRequest
+    note left
+        StreamID
+        Bucket?
+        Key?
+        SourceBucket //encrypted//
+        SourceKey //encrypted//
+        StartOffset
+        EndOffset
+    end note
+    note right #lightgreen
+        Disallow combining objects: verify that 
+        all copy sources have the same streamID.
+
+        Calculate on Satellite if offsets align with
+        segment boundries: if unaligned send OrderLimits
+        so Uplink can download and re-upload
+    end note
+
+    Uplink <-- Satellite: BeginCopyObjectRangeResponse
+    note right
+        SegmentKeys //encrypted//
+        //if unaligned://
+        SegmentDownloadResponse
+        SegmentBeginResponse
+        SegmentDownloadResponse
+        SegmentBeginResponse
+    end note
+
+    collections StorageNodes
+
+    group if first segment unaligned
+        Uplink -> StorageNodes: PieceDownloadRequest
+        Uplink <-- StorageNodes: PieceDownloadResponse
+        Uplink -> StorageNodes: PieceUploadRequest
+        Uplink <-- StorageNodes: PieceUploadResponse
+    end
+
+    group if last segment unaligned
+        Uplink -> StorageNodes: PieceDownloadRequest
+        Uplink <-- StorageNodes: PieceDownloadResponse
+        Uplink -> StorageNodes: PieceUploadRequest
+        Uplink <-- StorageNodes: PieceUploadResponse
+    end
+
+    Uplink -> Satellite: FinishCopyObjectRangeRequest
+    note left
+        SegmentKeys //encrypted//
+        SegmentCommitRequest
+        | SegmentMakeInlineRequest
+        SegmentCommitRequest
+        | SegmentMakeInlineRequest
+    end note
+
+    Uplink <-- Satellite: FinishCopyObjectRangeResponmse
+    note right
+        SegmentSuccessfulPieces
+        | SegmentMakeInlineResponse
+        SegmentSuccessfulPieces
+        | SegmentMakeInlineResponse
+    end note
+
+    Gateway <-- Uplink: CopyObjectRange return
+
+    S3Client <-- Gateway: 200 response
+end
+
+S3Client -> Gateway: POST /bucket/dest?uploadId=7tKsLOJgNs
+
+Gateway -> Uplink: CommitUpload
+note left
+    Bucket
+    Key
+    UploadID
+    CustomMetadata
+end note
+
+Uplink -> Satellite: ObjectCommitRequest
+note left
+    StreamID
+    CustomMetadata //encypted//
+end note
+note right #lightgreen
+    Verify segment offsets
+
+    Change object status from 
+    pending to committed
+end note
+
+Uplink <-- Satellite: ObjectCommitResponse
+
+Gateway <-- Uplink: CommitUpload return
+
+S3Client <-- Gateway: 200 response
+
+@enduml

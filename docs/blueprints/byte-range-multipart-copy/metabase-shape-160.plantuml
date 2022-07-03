@@ -1,0 +1,78 @@
+@startuml
+package OriginalObject {
+    class OriginalObject.Object1 {
+        key
+        256 MiB
+    }
+    
+    package OriginalObject.Part1 {
+        class OriginalObject.Part1.Segment1 {
+            64 MiB
+            56 pieces
+        }
+        class OriginalObject.Part1.Segment2 {
+            64 MiB
+            56 pieces
+        }
+        class OriginalObject.Part1.Segment3 {
+            64 MiB
+            56 pieces
+        }
+        class OriginalObject.Part1.Segment4 {
+            64 MiB
+            56 pieces
+        }
+    }
+}
+
+package CopiedObject {
+    class CopiedObject.Object2 {
+        key
+        256 MiB
+    }
+
+    class CopiedObject.SegmentCopies {
+        streamID
+        ancestorStreamID
+    }
+
+    package CopiedObject.Part1 {
+        class CopiedObject.Part1.Segment1 {
+            64 MiB
+            0 pieces
+        }
+        class CopiedObject.Part1.Segment2 {
+            64 MiB
+            0 pieces
+        }
+        class CopiedObject.Part1.Segment3 {
+            32 MiB
+            56 pieces
+        }
+    }
+    package CopiedObject.Part2 {
+        class CopiedObject.Part2.Segment1 {
+            32 MiB
+            56 pieces
+        }
+        class CopiedObject.Part2.Segment2 {
+            64 MiB
+            0 pieces
+        }
+        class CopiedObject.Part2.Segment3 {
+            64 MiB
+            0 pieces
+        }
+    }
+}
+
+CopiedObject.SegmentCopies -u-> OriginalObject.Part1.Segment1
+CopiedObject.SegmentCopies -u-> OriginalObject.Part1.Segment2
+CopiedObject.SegmentCopies -u-> OriginalObject.Part1.Segment4
+
+CopiedObject.Part1.Segment1 -u-> CopiedObject.SegmentCopies
+CopiedObject.Part1.Segment2 -u-> CopiedObject.SegmentCopies
+CopiedObject.Part2.Segment2 -u-> CopiedObject.SegmentCopies
+CopiedObject.Part2.Segment3 -u-> CopiedObject.SegmentCopies
+
+@enduml
